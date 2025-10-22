@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+  namespace: mlops
+  labels:
+    app: locust
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: locust
+  template:
+    metadata:
+      labels:
+        app: locust
+    spec:
+      containers:
+      - name: locust
+        image: locustio/locust:latest
+        ports:
+        - containerPort: 8089
+          name: web
+        env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mlops-secrets
+              key: api-key
+        - name: TARGET_HOST
+          value: "http://api:7860"
+        - name: LOCUST_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: LOCUST_MODE
+        - name: LOCUST_USERS
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: LOCUST_USERS
+        - name: LOCUST_SPAWN_RATE
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: LOCUST_SPAWN_RATE
+        command:
+          - /bin/bash
+          - -c
+          - |
+            pip install python-dotenv
+            exec locust -f /home/locust/locustfile.py --host=http://api:7860
+        volumeMounts:
+        - name: locust-script
+          mountPath: /home/locust
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8089
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8089
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: locust-script
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+  namespace: mlops
+  labels:
+    app: locust
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8089
+    targetPort: 8089
+    name: web
+  selector:
+    app: locust

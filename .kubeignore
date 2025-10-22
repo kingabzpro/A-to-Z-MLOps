@@ -1,0 +1,61 @@
+# Kubeignore - Files to exclude from Kubernetes deployments
+# Similar to .gitignore but for Kubernetes manifests
+
+# Sensitive files
+.kube-secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.bak
+~*
+
+# Documentation (if not needed in container)
+*.md
+docs/
+CHANGELOG.md
+
+# Testing
+tests/
+.coverage
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# Data files (large)
+data/
+*.parquet
+*.pkl
+*.csv
+
+# Models (if not needed)
+*.joblib
+*.h5
+*.onnx
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

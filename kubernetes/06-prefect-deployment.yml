@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prefect
+  namespace: mlops
+  labels:
+    app: prefect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prefect
+  template:
+    metadata:
+      labels:
+        app: prefect
+    spec:
+      containers:
+      - name: prefect
+        image: prefecthq/prefect:3-latest
+        ports:
+        - containerPort: 4200
+          name: web
+        command:
+          - sh
+          - -c
+          - prefect server start --host 0.0.0.0 --port 4200
+        env:
+        - name: PREFECT_SERVER_API_HOST
+          value: "0.0.0.0"
+        - name: PREFECT_SERVER_API_PORT
+          value: "4200"
+        - name: PREFECT_HOME
+          value: "/opt/prefect"
+        - name: PREFECT_API_URL
+          value: "http://localhost:4200/api"
+        - name: PREFECT_SERVER_API_URL
+          value: "http://prefect:4200/api"
+        volumeMounts:
+        - name: storage
+          mountPath: /opt/prefect
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /api/ready
+            port: 4200
+          initialDelaySeconds: 40
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/ready
+            port: 4200
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prefect
+  namespace: mlops
+  labels:
+    app: prefect
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4200
+    targetPort: 4200
+    name: web
+  selector:
+    app: prefect

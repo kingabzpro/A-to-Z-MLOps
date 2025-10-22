@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: mlops
+  labels:
+    app: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+      - name: mlflow
+        image: ghcr.io/mlflow/mlflow:latest
+        ports:
+        - containerPort: 5000
+          name: web
+        command:
+          - sh
+          - -c
+          - >
+            mkdir -p /mlflow/artifacts &&
+            chmod -R 777 /mlflow &&
+            mlflow server
+            --host=0.0.0.0
+            --port=5000
+            --backend-store-uri=sqlite:////mlflow/mlflow.db
+            --default-artifact-root=/mlflow/artifacts
+            --serve-artifacts
+        env:
+        - name: MLFLOW_TRACKING_URI
+          valueFrom:
+            secretKeyRef:
+              name: mlops-secrets
+              key: mlflow-tracking-uri
+        volumeMounts:
+        - name: storage
+          mountPath: /mlflow
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 40
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+  namespace: mlops
+  labels:
+    app: mlflow
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
+    name: web
+  selector:
+    app: mlflow

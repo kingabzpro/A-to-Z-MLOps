@@ -58,3 +58,7 @@ mlartifacts/
 logs/
 *.log
 /prometheus-3.4.0-rc.0.windows-amd64
+
+# Kubernetes Secrets
+.kube-secrets
+kubernetes/*-secrets.yml

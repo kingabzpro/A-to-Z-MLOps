@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: mlops
+  labels:
+    app: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      serviceAccountName: mlops-api
+      containers:
+      - name: api
+        image: ghcr.io/kingabzpro/a-to-z-mlops:main
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 7860
+          name: web
+        env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mlops-secrets
+              key: API_KEY
+        - name: KAGGLE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mlops-secrets
+              key: KAGGLE_USERNAME
+        - name: KAGGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mlops-secrets
+              key: KAGGLE_API_KEY
+        - name: MODEL_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: MODEL_NAME
+        - name: MODEL_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: MODEL_VERSION
+        - name: CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: CACHE_TTL
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow:5000"
+        - name: PREFECT_API_URL
+          value: "http://prefect:4200/api"
+        - name: PREFECT_SERVER_API_URL
+          value: "http://prefect:4200/api"
+        - name: RUN_PIPELINE
+          valueFrom:
+            configMapKeyRef:
+              name: mlops-config
+              key: RUN_PIPELINE
+        volumeMounts:
+        - name: configs
+          mountPath: /app/configs
+          readOnly: true
+        - name: mlflow-storage
+          mountPath: /mlflow
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /info
+            port: 7860
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /info
+            port: 7860
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+      volumes:
+      - name: configs
+        emptyDir: {}
+      - name: mlflow-storage
+        emptyDir: {}
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - mlflow
+                  - prefect
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: mlops
+  labels:
+    app: api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 7860
+    targetPort: 7860
+    name: web
+  selector:
+    app: api
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mlops-api
+  namespace: mlops
