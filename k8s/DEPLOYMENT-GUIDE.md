@@ -1,10 +1,10 @@
-# Kubernetes Deployment Guide
+# k8s Deployment Guide
 
-This guide provides instructions for deploying the A-to-Z MLOps project to Kubernetes while keeping sensitive API keys secure.
+This guide provides instructions for deploying the A-to-Z MLOps project to k8s while keeping sensitive API keys secure.
 
 ## Prerequisites
 
-- Kubernetes cluster (1.20+)
+- k8s cluster (1.20+)
 - `kubectl` configured to access your cluster
 - Docker images pushed to a registry (ghcr.io recommended)
 
@@ -12,14 +12,14 @@ This guide provides instructions for deploying the A-to-Z MLOps project to Kuber
 
 ⚠️ **NEVER commit secrets with real values to version control**
 
-This deployment uses Kubernetes Secrets to safely store sensitive data like API keys and credentials. Secrets are NOT stored in the YAML files with real values.
+This deployment uses k8s Secrets to safely store sensitive data like API keys and credentials. Secrets are NOT stored in the YAML files with real values.
 
 ## Deployment Steps
 
 ### Step 1: Create the Namespace
 
 ```bash
-kubectl apply -f kubernetes/00-namespace.yml
+kubectl apply -f k8s/00-namespace.yml
 ```
 
 ### Step 2: Create Secrets Securely
@@ -48,7 +48,7 @@ kubectl create secret generic mlops-secrets --from-env-file=.kube-secrets -n mlo
 ### Step 3: Deploy ConfigMap
 
 ```bash
-kubectl apply -f kubernetes/02-configmap.yml
+kubectl apply -f k8s/02-configmap.yml
 ```
 
 ### Step 4: Deploy Services
@@ -57,22 +57,22 @@ Deploy in order (services have dependencies):
 
 ```bash
 # Core infrastructure services
-kubectl apply -f kubernetes/03-prometheus-deployment.yml
-kubectl apply -f kubernetes/04-grafana-deployment.yml
-kubectl apply -f kubernetes/05-mlflow-deployment.yml
-kubectl apply -f kubernetes/06-prefect-deployment.yml
+kubectl apply -f k8s/03-prometheus-deployment.yml
+kubectl apply -f k8s/04-grafana-deployment.yml
+kubectl apply -f k8s/05-mlflow-deployment.yml
+kubectl apply -f k8s/06-prefect-deployment.yml
 
 # Application
-kubectl apply -f kubernetes/07-api-deployment.yml
+kubectl apply -f k8s/07-api-deployment.yml
 
 # Load testing (optional)
-kubectl apply -f kubernetes/08-locust-deployment.yml
+kubectl apply -f k8s/08-locust-deployment.yml
 ```
 
 Or deploy all at once:
 
 ```bash
-kubectl apply -f kubernetes/ -n mlops
+kubectl apply -f k8s/ -n mlops
 ```
 
 ### Step 5: Verify Deployment

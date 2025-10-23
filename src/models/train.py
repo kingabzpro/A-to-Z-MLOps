@@ -46,9 +46,21 @@ MODEL_PARAMS_PATH = (
 
 
 def load_mlflow_config():
-    """Load MLflow configuration from YAML file"""
+    """Load MLflow configuration from YAML file with environment variable substitution"""
     with open(CONFIG_PATH, "r") as file:
-        config = yaml.safe_load(file)
+        content = file.read()
+        # Replace environment variables in format ${VAR:default}
+        import re
+        def replace_env_var(match):
+            var_expr = match.group(1)
+            if ':' in var_expr:
+                var_name, default_value = var_expr.split(':', 1)
+                return os.getenv(var_name, default_value)
+            else:
+                return os.getenv(var_expr, '')
+
+        content = re.sub(r'\$\{([^}]+)\}', replace_env_var, content)
+        config = yaml.safe_load(content)
     return config
 
 
@@ -63,13 +75,32 @@ def setup_mlflow():
     """Set up MLflow tracking"""
     config = load_mlflow_config()
 
-    mlflow.set_tracking_uri(config["tracking_uri"])
-    mlflow.set_experiment(config["experiment_name"])
+    tracking_uri = config["tracking_uri"]
 
-    logger.info(f"MLflow tracking URI: {mlflow.get_tracking_uri()}")
-    logger.info(
-        f"MLflow experiment: {mlflow.get_experiment_by_name(config['experiment_name'])}"
-    )
+    # Set environment variables to help with host header resolution
+    os.environ['MLFLOW_TRACKING_URI'] = tracking_uri
+    os.environ['MLFLOW_TRACKING_HOST'] = 'mlflow'
+    os.environ['MLFLOW_TRACKING_PORT'] = '5000'
+
+    # Configure MLflow tracking
+    mlflow.set_tracking_uri(tracking_uri)
+
+    # Set experiment with error handling
+    try:
+        mlflow.set_experiment(config["experiment_name"])
+        logger.info(f"MLflow tracking URI: {mlflow.get_tracking_uri()}")
+        experiment = mlflow.get_experiment_by_name(config["experiment_name"])
+        logger.info(f"MLflow experiment: {experiment}")
+    except Exception as e:
+        logger.error(f"Failed to set MLflow experiment: {e}")
+        # Try to create the experiment directly
+        client = mlflow.tracking.MlflowClient()
+        try:
+            experiment_id = client.create_experiment(config["experiment_name"])
+            logger.info(f"Created new MLflow experiment with ID: {experiment_id}")
+        except Exception as create_error:
+            logger.error(f"Failed to create MLflow experiment: {create_error}")
+            raise
 
 
 def create_pipeline(classifier_type="logistic"):

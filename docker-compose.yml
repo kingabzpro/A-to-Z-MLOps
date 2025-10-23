@@ -17,7 +17,8 @@ services:
       - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.3
 
   # Grafana for visualization
   grafana:
@@ -41,7 +42,8 @@ services:
       - prometheus
     restart: unless-stopped
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.4
 
   # MLflow tracking server
   mlflow:
@@ -52,10 +54,11 @@ services:
       sh -c "
         mkdir -p /mlflow/artifacts &&
         chmod -R 777 /mlflow &&
-        mlflow server --host=0.0.0.0 --port=5000 --backend-store-uri=sqlite:///mlflow/mlflow.db --default-artifact-root=/mlflow/artifacts --serve-artifacts
+        mlflow server --host=0.0.0.0 --port=5000 --backend-store-uri=sqlite:///mlflow/mlflow.db --default-artifact-root=/mlflow/artifacts --serve-artifacts --workers 2
       "
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_SERVER_HOST=0.0.0.0
     volumes:
       - mlflow-data:/mlflow
     restart: unless-stopped
@@ -66,7 +69,8 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.5
 
   # Prefect orchestration server
   prefect:
@@ -93,7 +97,8 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.6
 
   # FastAPI application
   api:
@@ -110,7 +115,9 @@ services:
       CACHE_TTL: ${CACHE_TTL:-3600}
       KAGGLE_USERNAME: ${KAGGLE_USERNAME}
       KAGGLE_API_KEY: ${KAGGLE_API_KEY}
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: http://172.20.0.5:5000
+      MLFLOW_TRACKING_HOST: 172.20.0.5
+      MLFLOW_TRACKING_PORT: 5000
       PREFECT_API_URL: http://prefect:4200/api
       PREFECT_SERVER_API_URL: http://prefect:4200/api
       RUN_PIPELINE: ${RUN_PIPELINE:-false}
@@ -130,7 +137,8 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.10
 
   # Load testing with Locust
   locust:
@@ -156,7 +164,8 @@ services:
     depends_on:
       - api
     networks:
-      - mlops-network
+      mlops-network:
+        ipv4_address: 172.20.0.11
 
 volumes:
   prometheus-data:
@@ -171,3 +180,6 @@ volumes:
 networks:
   mlops-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

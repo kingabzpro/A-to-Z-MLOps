@@ -1,5 +1,5 @@
 # MLflow config for local development
-tracking_uri: "http://mlflow:5000"
+tracking_uri: "http://172.20.0.5:5000"
 experiment_name: "news-classifier"
 artifact_location: "/mlflow/artifacts"
 
