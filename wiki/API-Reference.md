@@ -1,15 +1,15 @@
-# 📡 API Reference
+# API Reference
 
 ## Endpoints Overview
 
 | Endpoint | Method | Description | Rate Limit | Auth Required |
 |----------|--------|-------------|------------|---------------|
-| `/` | GET | Web UI for testing | 100/min | ❌ |
-| `/info` | GET | Model metadata and health | 100/min | ❌ |
-| `/predict` | POST | Single title prediction | 30/min | ✅ |
-| `/predict/batch` | POST | Batch prediction (up to 100 titles) | 10/min | ✅ |
-| `/metrics` | GET | Prometheus metrics | - | ❌ |
-| `/docs` | GET | Swagger API documentation | - | ❌ |
+| `/` | GET | Web UI for testing | 100/min | No |
+| `/info` | GET | Model metadata and health | 100/min | No |
+| `/predict` | POST | Single title prediction | 30/min | Yes |
+| `/predict/batch` | POST | Batch prediction (up to 100 titles) | 10/min | Yes |
+| `/metrics` | GET | Prometheus metrics | - | No |
+| `/docs` | GET | Swagger API documentation | - | No |
 
 ---
 
@@ -46,7 +46,7 @@ curl -X POST "http://localhost:7860/predict" \
 **Request Schema:**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `title` | string | ✅ | News title (min 3 characters) |
+| `title` | string | Yes | News title (min 3 characters) |
 
 **Response Schema:**
 | Field | Type | Description |
@@ -87,7 +87,7 @@ curl -X POST "http://localhost:7860/predict/batch" \
 **Request Schema:**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `titles` | array[string] | ✅ | List of news titles (1-100 items, each min 3 chars) |
+| `titles` | array[string] | Yes | List of news titles (1-100 items, each min 3 chars) |
 
 **Response Schema:**
 | Field | Type | Description |

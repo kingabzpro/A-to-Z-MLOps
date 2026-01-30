@@ -1,4 +1,4 @@
-# 🔧 Configuration
+# Configuration
 
 ## Environment Variables
 
@@ -46,7 +46,7 @@ cp .env.example .env
 | `PREFECT_PORT` | Prefect port | `4200` |
 | `LOCUST_PORT` | Locust port | `8089` |
 
-> ⚠️ **Security Note**: Never commit your `.env` file to version control.
+> **Security Note**: Never commit your `.env` file to version control.
 
 ---
 

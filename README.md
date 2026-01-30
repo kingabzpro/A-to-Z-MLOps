@@ -1,6 +1,6 @@
 # 🤖 News Classification MLOps
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MLOps](https://img.shields.io/badge/MLOps-Enabled-green.svg)](https://mlops.org)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
@@ -10,12 +10,12 @@ A production-ready MLOps pipeline for news classification demonstrating end-to-e
 
 ## ✨ Key Features
 
-- 🔄 **Complete Pipeline** — Automated data processing, training, and deployment with Prefect orchestration
-- 🚀 **Production API** — FastAPI with single & batch prediction, auth, rate limiting, and caching
-- 📊 **Full Observability** — Prometheus metrics, Grafana dashboards, and MLflow experiment tracking
-- 🐳 **Container-Ready** — Docker Compose for local dev, Kubernetes manifests for production
-- 🧪 **Comprehensive Testing** — Unit, integration, and load testing with Locust
-- 🔐 **Security** — API key authentication and configurable rate limiting
+- 🔄 **Complete Pipeline**: Automated data processing, training, and deployment with Prefect orchestration
+- 🚀 **Production API**: FastAPI with single & batch prediction, auth, rate limiting, and caching
+- 📊 **Full Observability**: Prometheus metrics, Grafana dashboards, and MLflow experiment tracking
+- 🐳 **Container-Ready**: Docker Compose for local dev, Kubernetes manifests for production
+- 🧪 **Comprehensive Testing**: Unit, integration, and load testing with Locust
+- 🔐 **Security**: API key authentication and configurable rate limiting
 
 ## 🚀 Quick Start
 

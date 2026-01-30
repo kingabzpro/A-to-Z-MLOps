@@ -1,4 +1,4 @@
-# 🔍 Monitoring & Observability
+# Monitoring and Observability
 
 ## Overview
 
@@ -7,12 +7,12 @@ The project includes a complete observability stack:
 | Tool | Purpose | URL |
 |------|---------|-----|
 | **Prometheus** | Metrics collection | http://localhost:9090 |
-| **Grafana** | Dashboards & visualization | http://localhost:3000 |
+| **Grafana** | Dashboards and visualization | http://localhost:3000 |
 | **MLflow** | Experiment tracking | http://localhost:5000 |
 
 ---
 
-## 📊 Grafana Dashboards
+## Grafana Dashboards
 
 The project includes pre-configured Grafana dashboards for:
 
@@ -39,7 +39,7 @@ The project includes pre-configured Grafana dashboards for:
 
 ---
 
-## 📈 Prometheus Metrics
+## Prometheus Metrics
 
 ### API Metrics
 
@@ -99,7 +99,7 @@ sum(prediction_cache_hits_total) / (sum(prediction_cache_hits_total) + sum(predi
 
 ---
 
-## 🧪 MLflow Experiment Tracking
+## MLflow Experiment Tracking
 
 MLflow tracks all training experiments:
 
@@ -126,7 +126,7 @@ MLflow tracks all training experiments:
 
 MLflow Model Registry manages:
 - Model versions
-- Stage transitions (Staging → Production)
+- Stage transitions (Staging to Production)
 - Model metadata and descriptions
 - Model lineage
 

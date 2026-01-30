@@ -1,6 +1,6 @@
-# 🚀 Quick Start
+# Quick Start
 
-## Docker Compose (Recommended) 🐳
+## Docker Compose (Recommended)
 
 The fastest way to get started is using Docker Compose, which spins up all services with pre-configured monitoring and orchestration.
 
@@ -47,7 +47,7 @@ API_PORT=7860
 LOCUST_PORT=8089
 ```
 
-> ⚠️ **Security Note**: Never commit your `.env` file to version control. Add it to `.gitignore`.
+> **Security Note**: Never commit your `.env` file to version control. Add it to `.gitignore`.
 
 ### 3. Launch Services
 ```bash
@@ -66,12 +66,12 @@ Once running, access the services at:
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| 🚀 FastAPI App | [http://localhost:7860](http://localhost:7860) | API Documentation at `/docs` |
-| 📊 MLflow | [http://localhost:5000](http://localhost:5000) | Model tracking and registry |
-| 📈 Grafana | [http://localhost:3000](http://localhost:3000) | Monitoring dashboards (admin/admin) |
-| 🔍 Prometheus | [http://localhost:9090](http://localhost:9090) | Metrics collection |
-| ⚙️ Prefect | [http://localhost:4200](http://localhost:4200) | Workflow orchestration |
-| 🦗 Locust | [http://localhost:8089](http://localhost:8089) | Load testing interface |
+| FastAPI App | [http://localhost:7860](http://localhost:7860) | API Documentation at `/docs` |
+| MLflow | [http://localhost:5000](http://localhost:5000) | Model tracking and registry |
+| Grafana | [http://localhost:3000](http://localhost:3000) | Monitoring dashboards (admin/admin) |
+| Prometheus | [http://localhost:9090](http://localhost:9090) | Metrics collection |
+| Prefect | [http://localhost:4200](http://localhost:4200) | Workflow orchestration |
+| Locust | [http://localhost:8089](http://localhost:8089) | Load testing interface |
 
 ### 5. Run the Pipeline
 ```bash
@@ -95,7 +95,7 @@ docker-compose down -v
 
 ---
 
-## ☸️ Kubernetes (Experimental) ⚠️
+## Kubernetes (Experimental)
 
 > **Note**: Kubernetes deployment is currently experimental and intended for advanced users. Production deployment requires additional configuration for persistence, security, and networking.
 

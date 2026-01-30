@@ -1,10 +1,10 @@
-# 🤖 News Classification MLOps
+# News Classification MLOps
 
-> 🚀 **Production-Ready MLOps Pipeline for News Classification**
+> **Production-Ready MLOps Pipeline for News Classification**
 
 An end-to-end MLOps pipeline demonstrating best practices in machine learning operations, from data ingestion to model deployment and monitoring.
 
-## 🎯 Overview
+## Overview
 
 This project implements a complete MLOps pipeline for news classification using BBC articles from Kaggle. It showcases industry-standard practices for:
 
@@ -16,52 +16,52 @@ This project implements a complete MLOps pipeline for news classification using 
 - **Testing**: Unit tests, integration tests, and load testing
 - **Deployment**: Container-based deployment with Docker and Kubernetes support
 
-## ✨ Features
+## Features
 
-### 🔄 Complete MLOps Pipeline
+### Complete MLOps Pipeline
 - Automated data processing and feature engineering
 - Model training with hyperparameter optimization
 - Experiment tracking and model registry
 - CI/CD pipeline with automated testing
 
-### 🚀 Production-Ready API
+### Production-Ready API
 - FastAPI-based REST service with async support
 - **Batch prediction endpoint** for processing multiple titles efficiently
 - API key authentication with configurable rate limiting (slowapi)
 - Model versioning and A/B testing support
 - Comprehensive API documentation with Swagger/OpenAPI
 
-### 📊 Monitoring & Observability
+### Monitoring and Observability
 - Real-time metrics collection with Prometheus
 - Interactive dashboards with Grafana
 - Model performance monitoring and drift detection
 - System health and resource utilization tracking
 
-### 🎯 Workflow Orchestration
+### Workflow Orchestration
 - Prefect-based workflow management
 - Dependency resolution and error handling
 - Scheduled and event-driven execution
 - Flow visualization and debugging
 
-### 🧪 Comprehensive Testing
+### Comprehensive Testing
 - Unit tests for all core components
 - Integration tests for API endpoints
 - Load testing with Locust
 - Model validation and performance testing
 
-### 🐳 Container-Based Deployment
+### Container-Based Deployment
 - Multi-stage Docker builds for optimization
 - Docker Compose for local development
 - Kubernetes manifests for production deployment
 - Environment-specific configurations
 
-### 🔐 Security Best Practices
+### Security Best Practices
 - Secure secret management
 - API authentication and authorization
 - Network policies and access control
 - Container security scanning
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 graph TB
@@ -82,6 +82,7 @@ graph TB
         I --> J2[Batch Inference]
         I --> K[Authentication]
         I --> L[Rate Limiting]
+    end
 
     subgraph "Monitoring Layer"
         M[Prometheus] --> N[Metrics Collection]
@@ -109,7 +110,7 @@ graph TB
     style M fill:#fff3e0
 ```
 
-## 📋 Prerequisites
+## Prerequisites
 
 ### Required Software
 - **Docker**: 20.10+ and **Docker Compose**: 2.0+
@@ -128,7 +129,7 @@ graph TB
 
 ---
 
-## 📚 Wiki Navigation
+## Wiki Navigation
 
 - [Quick Start](Quick-Start) - Get up and running
 - [Project Structure](Project-Structure) - Understand the codebase

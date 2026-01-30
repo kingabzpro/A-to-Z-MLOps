@@ -1,4 +1,4 @@
-# ☁️ Cloud Deployment
+# Cloud Deployment
 
 ## AWS EKS Deployment
 

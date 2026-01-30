@@ -1,4 +1,4 @@
-# 🛠️ Development
+# Development
 
 ## Local Development Setup
 
