@@ -294,11 +294,12 @@
                 <h3>Authentication</h3>
                 <p class="description">Protected endpoints require an API key in the X-API-Key header.</p>
                 <div class="code-block">
-<span class="comment"># Example request with authentication</span>
-curl -X POST <span class="string">"http://localhost:7860/predict"</span> \
-  -H <span class="string">"X-API-Key: your_api_key_here"</span> \
-  -H <span class="string">"Content-Type: application/json"</span> \
-  -d <span class="string">'{"title": "Breaking tech news"}'</span></div>
+                    <span class="comment"># Example request with authentication</span><br>
+                    curl -X POST <span class="string">"http://localhost:7860/predict"</span> \<br>
+                    &nbsp;&nbsp;-H <span class="string">"X-API-Key: your_api_key_here"</span> \<br>
+                    &nbsp;&nbsp;-H <span class="string">"Content-Type: application/json"</span> \<br>
+                    &nbsp;&nbsp;-d <span class="string">'{"title": "Breaking tech news"}'</span>
+                </div>
             </div>
 
             <div class="info-box">
@@ -388,29 +389,30 @@ curl -X POST <span class="string">"http://localhost:7860/predict"</span> \
             <div class="info-box">
                 <h3>Batch Prediction</h3>
                 <div class="code-block">
-<span class="comment"># Process multiple titles efficiently</span>
-curl -X POST <span class="string">"http://localhost:7860/predict/batch"</span> \
-  -H <span class="string">"X-API-Key: your_api_key_here"</span> \
-  -H <span class="string">"Content-Type: application/json"</span> \
-  -d <span class="string">'{
-    "titles": [
-      "Apple announces new AI features",
-      "Manchester United wins championship",
-      "Stock market reaches record high"
-    ]
-  }'</span>
-
-<span class="comment"># Response:</span>
-<span class="comment"># {
-#   "predictions": [
-#     {"title": "...", "category": "tech", "confidence": 0.95},
-#     {"title": "...", "category": "sport", "confidence": 0.88},
-#     {"title": "...", "category": "business", "confidence": 0.91}
-#   ],
-#   "total": 3,
-#   "successful": 3,
-#   "failed": 0
-# }</span></div>
+                    <span class="comment"># Process multiple titles efficiently</span><br>
+                    curl -X POST <span class="string">"http://localhost:7860/predict/batch"</span> \<br>
+                    &nbsp;&nbsp;-H <span class="string">"X-API-Key: your_api_key_here"</span> \<br>
+                    &nbsp;&nbsp;-H <span class="string">"Content-Type: application/json"</span> \<br>
+                    &nbsp;&nbsp;-d <span class="string">'{<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;"titles": [<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Apple announces new AI features",<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Manchester United wins championship",<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Stock market reaches record high"<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;]<br>
+                    &nbsp;&nbsp;}'</span><br>
+                    <br>
+                    <span class="comment"># Response:</span><br>
+                    <span class="comment"># {</span><br>
+                    <span class="comment">#   "predictions": [</span><br>
+                    <span class="comment">#     {"title": "...", "category": "tech", "confidence": 0.95},</span><br>
+                    <span class="comment">#     {"title": "...", "category": "sport", "confidence": 0.88},</span><br>
+                    <span class="comment">#     {"title": "...", "category": "business", "confidence": 0.91}</span><br>
+                    <span class="comment">#   ],</span><br>
+                    <span class="comment">#   "total": 3,</span><br>
+                    <span class="comment">#   "successful": 3,</span><br>
+                    <span class="comment">#   "failed": 0</span><br>
+                    <span class="comment"># }</span>
+                </div>
             </div>
         </div>
 
