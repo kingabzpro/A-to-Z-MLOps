@@ -34,7 +34,7 @@ This project implements a complete MLOps pipeline for news classification using 
 
 - **Data Pipeline**: Automated data ingestion, preprocessing, and validation
 - **Model Training**: Experiment tracking, hyperparameter tuning, and model versioning
-- **Model Serving**: RESTful API with authentication and monitoring
+- **Model Serving**: RESTful API with authentication, rate limiting, and batch inference
 - **Orchestration**: Workflow management with dependency resolution
 - **Monitoring**: Real-time metrics, performance tracking, and alerting
 - **Testing**: Unit tests, integration tests, and load testing
@@ -50,7 +50,8 @@ This project implements a complete MLOps pipeline for news classification using 
 
 ### 🚀 **Production-Ready API**
 - FastAPI-based REST service with async support
-- API key authentication and rate limiting
+- **Batch prediction endpoint** for processing multiple titles efficiently
+- API key authentication with configurable rate limiting (slowapi)
 - Model versioning and A/B testing support
 - Comprehensive API documentation with Swagger/OpenAPI
 
@@ -102,9 +103,9 @@ graph TB
 
     subgraph "API Layer"
         I[FastAPI Service] --> J[Model Inference]
+        I --> J2[Batch Inference]
         I --> K[Authentication]
         I --> L[Rate Limiting]
-    end
 
     subgraph "Monitoring Layer"
         M[Prometheus] --> N[Metrics Collection]
@@ -184,6 +185,11 @@ KAGGLE_API_KEY=your_kaggle_api_key
 MODEL_NAME=news_classifier_logistic
 MODEL_VERSION=1
 
+# Rate Limiting (optional)
+RATE_LIMIT_DEFAULT=100/minute
+RATE_LIMIT_PREDICT=30/minute
+RATE_LIMIT_BATCH=10/minute
+
 # Optional: Custom Ports
 PROMETHEUS_PORT=9090
 GRAFANA_PORT=3000
@@ -210,7 +216,7 @@ docker-compose logs -f
 #### 4. Access Services
 Once running, access the services at:
 
-- **🚀 FastAPI App**: [http://localhost:7860](http://localhost:7860) - API Documentation available
+- **🚀 FastAPI App**: [http://localhost:7860](http://localhost:7860) - API Documentation available at `/docs`
 - **📊 MLflow**: [http://localhost:5000](http://localhost:5000) - Model tracking and registry
 - **📈 Grafana**: [http://localhost:3000](http://localhost:3000) - Monitoring dashboards (admin/admin)
 - **🔍 Prometheus**: [http://localhost:9090](http://localhost:9090) - Metrics collection
@@ -353,6 +359,67 @@ A-to-Z-MLOps/
 └── 📄 README.md                     # This file
 ```
 
+## 📡 API Endpoints
+
+The API provides the following endpoints:
+
+| Endpoint | Method | Description | Rate Limit | Auth Required |
+|----------|--------|-------------|------------|---------------|
+| `/` | GET | Web UI for testing | 100/min | ❌ |
+| `/info` | GET | Model metadata and health | 100/min | ❌ |
+| `/predict` | POST | Single title prediction | 30/min | ✅ |
+| `/predict/batch` | POST | Batch prediction (up to 100 titles) | 10/min | ✅ |
+| `/metrics` | GET | Prometheus metrics | - | ❌ |
+| `/docs` | GET | Swagger API documentation | - | ❌ |
+
+### Single Prediction
+```bash
+curl -X POST "http://localhost:7860/predict" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Breaking tech news about AI breakthrough"}'
+```
+
+**Response:**
+```json
+{
+  "category": "tech",
+  "confidence": 0.89
+}
+```
+
+### Batch Prediction
+```bash
+curl -X POST "http://localhost:7860/predict/batch" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"titles": ["Tech startup raises funding", "Football team wins championship", "New policy announced"]}'
+```
+
+**Response:**
+```json
+{
+  "predictions": [
+    {"title": "Tech startup raises funding", "category": "tech", "confidence": 0.92},
+    {"title": "Football team wins championship", "category": "sport", "confidence": 0.95},
+    {"title": "New policy announced", "category": "politics", "confidence": 0.78}
+  ],
+  "total": 3,
+  "successful": 3,
+  "failed": 0
+}
+```
+
+### Rate Limiting
+When rate limit is exceeded, the API returns:
+```json
+{
+  "detail": "Rate limit exceeded",
+  "retry_after": "60 seconds"
+}
+```
+With HTTP status code `429 Too Many Requests` and `Retry-After` header.
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -369,6 +436,9 @@ The application uses environment variables for configuration. Key variables incl
 | `CACHE_TTL` | Cache time-to-live (seconds) | `3600` | ❌ |
 | `MLFLOW_TRACKING_URI` | MLflow server URI | `http://mlflow:5000` | ❌ |
 | `PREFECT_API_URL` | Prefect server URL | `http://prefect:4200/api` | ❌ |
+| `RATE_LIMIT_DEFAULT` | Default rate limit for endpoints | `100/minute` | ❌ |
+| `RATE_LIMIT_PREDICT` | Rate limit for /predict endpoint | `30/minute` | ❌ |
+| `RATE_LIMIT_BATCH` | Rate limit for /predict/batch endpoint | `10/minute` | ❌ |
 
 ### Model Configuration
 
@@ -409,14 +479,17 @@ Key metrics collected:
 
 ```python
 # API Metrics
-api_request_total{endpoint, method, status}
-api_request_duration_seconds{endpoint, method}
-api_active_connections
+http_requests_total{endpoint, method, status}
+http_request_duration_seconds{endpoint, method}
 
-# Model Metrics
-model_prediction_total{model_name, version}
-model_prediction_accuracy{model_name, version}
-model_inference_duration_seconds{model_name}
+# Prediction Metrics
+news_predictions_total{category}
+news_prediction_confidence{category}
+prediction_cache_hits_total{category}
+prediction_cache_misses_total{category}
+
+# Rate Limiting Metrics
+rate_limit_exceeded_total{endpoint, client_type}
 
 # System Metrics
 container_cpu_usage_seconds_total
@@ -443,7 +516,7 @@ pytest tests/ -v
 # Run tests with coverage
 pytest tests/ --cov=src --cov-report=html
 
-# Run load tests
+# Run load tests (includes batch endpoint testing)
 locust -f tests/stress_test.py --host=http://localhost:7860
 ```
 
@@ -462,6 +535,8 @@ locust -f tests/stress_test.py --host=http://localhost:7860
 3. **Load Tests** (`tests/stress_test.py`):
    - API performance under load
    - Concurrent request handling
+   - Batch endpoint performance testing
+   - Rate limiting behavior verification
    - Resource utilization monitoring
 
 ## ☁️ Cloud Deployment
@@ -579,17 +654,25 @@ docker system prune -a
 #### API Issues
 ```bash
 # Test API connectivity
-curl -X GET "http://localhost:7860/info" \
-  -H "X-API-Key: your_api_key"
+curl -X GET "http://localhost:7860/info"
 
 # Check API logs
 docker-compose logs api
 
-# Test model prediction
+# Test single prediction
 curl -X POST "http://localhost:7860/predict" \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{"text": "Test news article"}'
+  -d '{"title": "Breaking tech news about AI"}'
+
+# Test batch prediction (up to 100 titles)
+curl -X POST "http://localhost:7860/predict/batch" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"titles": ["Tech news", "Sports update", "Political news"]}'
+
+# Check rate limit status (429 = rate limited)
+# Response includes retry_after header
 ```
 
 #### MLflow Issues
