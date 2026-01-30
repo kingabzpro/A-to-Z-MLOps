@@ -4,14 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>News Classifier API</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
             --text-color: #1f2937;
+            --text-muted: #6b7280;
             --bg-color: #ffffff;
             --card-bg: #f9fafb;
             --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
         }
 
         * {
@@ -35,7 +40,7 @@
 
         header {
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2.5rem;
             padding: 2rem 0;
             border-bottom: 1px solid var(--border-color);
         }
@@ -44,57 +49,206 @@
             font-size: 2.5rem;
             color: var(--primary-color);
             margin-bottom: 1rem;
+            font-weight: 700;
         }
 
         .subtitle {
             font-size: 1.2rem;
-            color: #6b7280;
+            color: var(--text-muted);
             max-width: 600px;
             margin: 0 auto;
         }
 
+        .quick-links {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+
+        .quick-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+        .quick-link:hover {
+            background: var(--primary-dark);
+        }
+
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
         .endpoints {
             display: grid;
-            gap: 1.5rem;
-            margin-bottom: 3rem;
+            gap: 1rem;
         }
 
         .endpoint-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 1.5rem;
-            transition: transform 0.2s ease;
+            padding: 1.25rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .endpoint-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
         }
 
         .method {
             display: inline-block;
             padding: 0.25rem 0.75rem;
-            background: var(--primary-color);
-            color: white;
             border-radius: 4px;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        .method.get {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .method.post {
+            background: #d1fae5;
+            color: #065f46;
         }
 
         .endpoint-path {
-            font-family: monospace;
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.5rem;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .rate-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.5rem;
+            background: #fce7f3;
+            color: #be185d;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
 
         .description {
             color: #4b5563;
+            margin-bottom: 0.75rem;
+        }
+
+        .endpoint-meta {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box h3 {
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .info-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 1rem;
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin-top: 0.75rem;
+        }
+
+        .code-block .comment {
+            color: #6b7280;
+        }
+
+        .code-block .string {
+            color: #a5f3fc;
+        }
+
+        .code-block .key {
+            color: #fca5a5;
         }
 
         footer {
             text-align: center;
             padding: 2rem 0;
-            color: #6b7280;
+            color: var(--text-muted);
             border-top: 1px solid var(--border-color);
         }
 
@@ -114,6 +268,11 @@
             .endpoint-card {
                 padding: 1rem;
             }
+
+            .quick-links {
+                flex-direction: column;
+                align-items: center;
+            }
         }
     </style>
 </head>
@@ -121,32 +280,148 @@
     <div class="container">
         <header>
             <h1>News Classifier API</h1>
-            <p class="subtitle">A powerful API for classifying news articles into different categories using machine learning.</p>
+            <p class="subtitle">Production-ready machine learning API for classifying news articles into categories with high accuracy.</p>
+            <div class="quick-links">
+                <a href="/docs" class="quick-link">API Documentation</a>
+                <a href="https://github.com/kingabzpro/A-to-Z-MLOps/wiki" class="quick-link" target="_blank">Wiki</a>
+                <a href="https://github.com/kingabzpro/A-to-Z-MLOps" class="quick-link" target="_blank">GitHub</a>
+            </div>
         </header>
 
-        <main class="endpoints">
-            <div class="endpoint-card">
-                <span class="method">GET</span>
-                <div class="endpoint-path">/info</div>
-                <p class="description">Retrieve information about the loaded model, including version and available categories.</p>
+        <div class="section">
+            <h2 class="section-title">API Overview</h2>
+            <div class="info-box">
+                <h3>Authentication</h3>
+                <p class="description">Protected endpoints require an API key in the X-API-Key header.</p>
+                <div class="code-block">
+<span class="comment"># Example request with authentication</span>
+curl -X POST <span class="string">"http://localhost:7860/predict"</span> \
+  -H <span class="string">"X-API-Key: your_api_key_here"</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"title": "Breaking tech news"}'</span></div>
             </div>
 
-            <div class="endpoint-card">
-                <span class="method">POST</span>
-                <div class="endpoint-path">/predict</div>
-                <p class="description">Classify a news article title and receive the predicted category with confidence score.</p>
+            <div class="info-box">
+                <h3>Rate Limits</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Public Endpoints</span>
+                        <span class="info-value">100 requests/minute</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">/predict</span>
+                        <span class="info-value">30 requests/minute</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">/predict/batch</span>
+                        <span class="info-value">10 requests/minute</span>
+                    </div>
+                </div>
+                <p class="description" style="margin-top: 0.75rem;">When rate limit is exceeded, the API returns HTTP 429 with a Retry-After header.</p>
             </div>
+        </div>
 
-            <div class="endpoint-card">
-                <span class="method">GET</span>
-                <div class="endpoint-path">/metrics</div>
-                <p class="description">Access Prometheus metrics for monitoring API performance and usage.</p>
+        <div class="section">
+            <h2 class="section-title">Endpoints</h2>
+            <div class="endpoints">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="endpoint-path">/info</span>
+                    </div>
+                    <p class="description">Get model information including version, loaded status, and available categories.</p>
+                    <div class="endpoint-meta">
+                        <span class="rate-badge">100/min</span>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/predict</span>
+                        <span class="auth-badge">Auth Required</span>
+                    </div>
+                    <p class="description">Classify a single news article title. Returns predicted category and confidence score.</p>
+                    <div class="endpoint-meta">
+                        <span class="rate-badge">30/min</span>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method post">POST</span>
+                        <span class="endpoint-path">/predict/batch</span>
+                        <span class="auth-badge">Auth Required</span>
+                    </div>
+                    <p class="description">Process up to 100 news titles in a single request. Ideal for bulk classification tasks with better performance than individual requests.</p>
+                    <div class="endpoint-meta">
+                        <span class="rate-badge">10/min</span>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="endpoint-path">/metrics</span>
+                    </div>
+                    <p class="description">Prometheus metrics endpoint for monitoring API performance, request rates, and prediction statistics.</p>
+                    <div class="endpoint-meta">
+                        <span class="rate-badge">No Limit</span>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method get">GET</span>
+                        <span class="endpoint-path">/docs</span>
+                    </div>
+                    <p class="description">Interactive Swagger/OpenAPI documentation with request/response schemas and testing interface.</p>
+                    <div class="endpoint-meta">
+                        <span class="rate-badge">No Limit</span>
+                    </div>
+                </div>
             </div>
-        </main>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Quick Example</h2>
+            <div class="info-box">
+                <h3>Batch Prediction</h3>
+                <div class="code-block">
+<span class="comment"># Process multiple titles efficiently</span>
+curl -X POST <span class="string">"http://localhost:7860/predict/batch"</span> \
+  -H <span class="string">"X-API-Key: your_api_key_here"</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{
+    "titles": [
+      "Apple announces new AI features",
+      "Manchester United wins championship",
+      "Stock market reaches record high"
+    ]
+  }'</span>
+
+<span class="comment"># Response:</span>
+<span class="comment"># {
+#   "predictions": [
+#     {"title": "...", "category": "tech", "confidence": 0.95},
+#     {"title": "...", "category": "sport", "confidence": 0.88},
+#     {"title": "...", "category": "business", "confidence": 0.91}
+#   ],
+#   "total": 3,
+#   "successful": 3,
+#   "failed": 0
+# }</span></div>
+            </div>
+        </div>
 
         <footer>
-            <p class="version">News Classifier API v0.6 | Powered by FastAPI</p>
+            <p class="version">News Classifier API v0.7 | FastAPI + MLflow + Prometheus</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                <a href="https://github.com/kingabzpro/A-to-Z-MLOps/wiki" style="color: var(--primary-color); text-decoration: none;">Documentation</a> •
+                <a href="/docs" style="color: var(--primary-color); text-decoration: none;">API Reference</a> •
+                <a href="https://github.com/kingabzpro/A-to-Z-MLOps" style="color: var(--primary-color); text-decoration: none;">GitHub</a>
+            </p>
         </footer>
     </div>
 </body>
-</html> 
+</html>
