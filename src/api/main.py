@@ -57,13 +57,13 @@ class Settings(BaseSettings):
     )
     # Rate limiting settings
     rate_limit_default: str = Field(
-        "100/minute", json_schema_extra={"env": "RATE_LIMIT_DEFAULT"}
+        "10000/minute", json_schema_extra={"env": "RATE_LIMIT_DEFAULT"}
     )
     rate_limit_predict: str = Field(
-        "30/minute", json_schema_extra={"env": "RATE_LIMIT_PREDICT"}
+        "3000/minute", json_schema_extra={"env": "RATE_LIMIT_PREDICT"}
     )
     rate_limit_batch: str = Field(
-        "10/minute", json_schema_extra={"env": "RATE_LIMIT_BATCH"}
+        "1000/minute", json_schema_extra={"env": "RATE_LIMIT_BATCH"}
     )
 
     @field_validator("model_version", mode="before")

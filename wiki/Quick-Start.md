@@ -34,9 +34,9 @@ MODEL_NAME=news_classifier_logistic
 MODEL_VERSION=1
 
 # Rate Limiting (optional)
-RATE_LIMIT_DEFAULT=100/minute
-RATE_LIMIT_PREDICT=30/minute
-RATE_LIMIT_BATCH=10/minute
+RATE_LIMIT_DEFAULT=10000/minute
+RATE_LIMIT_PREDICT=3000/minute
+RATE_LIMIT_BATCH=1000/minute
 
 # Optional: Custom Ports
 PROMETHEUS_PORT=9090

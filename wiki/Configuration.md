@@ -31,9 +31,9 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |----------|-------------|----------|
-| `RATE_LIMIT_DEFAULT` | Default rate limit | `100/minute` |
-| `RATE_LIMIT_PREDICT` | `/predict` endpoint limit | `30/minute` |
-| `RATE_LIMIT_BATCH` | `/predict/batch` endpoint limit | `10/minute` |
+| `RATE_LIMIT_DEFAULT` | Default rate limit | `10000/minute` |
+| `RATE_LIMIT_PREDICT` | `/predict` endpoint limit | `3000/minute` |
+| `RATE_LIMIT_BATCH` | `/predict/batch` endpoint limit | `1000/minute` |
 
 ### Port Configuration
 

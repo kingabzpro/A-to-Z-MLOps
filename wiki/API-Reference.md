@@ -159,9 +159,9 @@ The response includes a `Retry-After` header indicating when to retry.
 
 | Endpoint | Limit |
 |----------|-------|
-| Default | 100/minute |
-| `/predict` | 30/minute |
-| `/predict/batch` | 10/minute |
+| Default | 10000/minute |
+| `/predict` | 3000/minute |
+| `/predict/batch` | 1000/minute |
 
 Rate limits can be customized via environment variables:
 - `RATE_LIMIT_DEFAULT`
