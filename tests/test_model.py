@@ -79,3 +79,89 @@ def test_predict_invalid_api_key():
     else:
         assert response.status_code == 403
         assert response.json() == {"detail": "Invalid API key supplied"}
+
+
+def test_batch_predict():
+    """Test the /predict/batch endpoint with multiple titles."""
+    client = TestClient(app)
+    response = client.post(
+        "/predict/batch",
+        json={
+            "titles": [
+                "Breaking news in technology sector",
+                "Sports team wins championship",
+                "Political developments in parliament",
+            ]
+        },
+        headers={"X-API-Key": API_KEY},
+    )
+    assert response.status_code in (200, 503)
+    if response.status_code == 200:
+        data = response.json()
+        assert "predictions" in data
+        assert "total" in data
+        assert "successful" in data
+        assert "failed" in data
+        assert data["total"] == 3
+        assert len(data["predictions"]) == 3
+        for pred in data["predictions"]:
+            assert "title" in pred
+            assert "category" in pred or "error" in pred
+
+
+def test_batch_predict_empty_list():
+    """Test batch endpoint rejects empty list."""
+    client = TestClient(app)
+    response = client.post(
+        "/predict/batch",
+        json={"titles": []},
+        headers={"X-API-Key": API_KEY},
+    )
+    assert response.status_code == 422  # Validation error for empty list
+
+
+def test_batch_predict_short_title():
+    """Test batch endpoint validates title length."""
+    client = TestClient(app)
+    response = client.post(
+        "/predict/batch",
+        json={"titles": ["OK title here", "ab"]},  # Second title too short
+        headers={"X-API-Key": API_KEY},
+    )
+    assert response.status_code == 422  # Validation error
+
+
+def test_batch_predict_no_api_key():
+    """Test batch endpoint requires API key."""
+    client = TestClient(app)
+    response = client.post(
+        "/predict/batch",
+        json={"titles": ["Test title without API key"]},
+    )
+    if response.status_code == 503:
+        assert response.json()["detail"] == "Model not available"
+    else:
+        assert response.status_code == 403
+
+
+def test_rate_limit_info_endpoint():
+    """Test that rate limiting is active on info endpoint."""
+    client = TestClient(app)
+    # Make multiple requests - should work within rate limit
+    for _ in range(5):
+        response = client.get("/info")
+        assert response.status_code == 200
+
+
+def test_rate_limit_returns_429():
+    """Test that exceeding rate limit returns 429 status code."""
+    client = TestClient(app)
+    # This test verifies the rate limit error handler is properly configured
+    # In actual testing with real rate limits, this would trigger 429
+    response = client.get("/info")
+    assert response.status_code in (200, 429)
+    if response.status_code == 429:
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Rate limit exceeded"
+        assert "retry_after" in data

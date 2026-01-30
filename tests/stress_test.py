@@ -41,3 +41,12 @@ class NewsClassifierUser(HttpUser):
         """Test the /predict endpoint with random news titles"""
         title = random.choice(self.sample_titles)
         self.client.post("/predict", json={"title": title}, headers=self.headers)
+
+    @task(3)
+    def predict_batch(self):
+        """Test the /predict/batch endpoint with multiple random news titles"""
+        titles = random.sample(self.sample_titles, k=random.randint(2, 5))
+        response = self.client.post("/predict/batch", json={"titles": titles}, headers=self.headers)
+        # Log rate limit responses for monitoring
+        if response.status_code == 429:
+            print(f"Rate limited on batch endpoint: {response.json()}")

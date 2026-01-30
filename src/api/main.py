@@ -17,10 +17,13 @@ import joblib
 import mlflow
 import yaml
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Response, Security
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, Security
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     CollectorRegistry,
@@ -51,6 +54,16 @@ class Settings(BaseSettings):
     )  # Cache TTL in seconds (1 hour)
     tracking_uri: str | None = Field(
         None, json_schema_extra={"env": "MLFLOW_TRACKING_URI"}
+    )
+    # Rate limiting settings
+    rate_limit_default: str = Field(
+        "100/minute", json_schema_extra={"env": "RATE_LIMIT_DEFAULT"}
+    )
+    rate_limit_predict: str = Field(
+        "30/minute", json_schema_extra={"env": "RATE_LIMIT_PREDICT"}
+    )
+    rate_limit_batch: str = Field(
+        "10/minute", json_schema_extra={"env": "RATE_LIMIT_BATCH"}
     )
 
     @field_validator("model_version", mode="before")
@@ -101,6 +114,24 @@ class TTLCache:
 
 
 prediction_cache = TTLCache(settings.cache_ttl)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Rate Limiter
+# ───────────────────────────────────────────────────────────────────────────────
+def get_client_identifier(request: Request) -> str:
+    """Get client identifier for rate limiting (API key or IP address)."""
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        return f"apikey:{api_key}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(
+    key_func=get_client_identifier,
+    default_limits=[settings.rate_limit_default],
+    storage_uri="memory://",
+)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -181,14 +212,46 @@ categories using a scikit-learn model.
 # ------------------------------------------------------------------------------
 app = FastAPI(
     title="News Classifier API",
-    version="0.6",
-    description=APP_DESCRIPTION,  #  👈  added
+    version="0.7",
+    description=APP_DESCRIPTION,
     lifespan=lifespan,
     openapi_tags=[
         {"name": "Metadata", "description": "Service health & model details"},
         {"name": "Inference", "description": "Predict category for a headline"},
     ],
 )
+
+# Attach limiter to app state
+app.state.limiter = limiter
+
+
+# Rate limit error handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Handle rate limit exceeded errors with proper JSON response."""
+    client_id = get_client_identifier(request)
+    client_type = "api_key" if client_id.startswith("apikey:") else "ip"
+    
+    # Record metric
+    metrics.rate_limit_exceeded.labels(
+        endpoint=request.url.path,
+        client_type=client_type,
+    ).inc()
+    
+    logger.warning(
+        "Rate limit exceeded for %s on endpoint %s",
+        client_id,
+        request.url.path,
+    )
+    
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": "Rate limit exceeded",
+            "retry_after": str(exc.detail).split(" ")[-1] if exc.detail else "60 seconds",
+        },
+        headers={"Retry-After": "60"},
+    )
 
 # Static HTML/JS assets
 templates_dir = BASE_DIR / "templates"
@@ -261,6 +324,14 @@ class Metrics:
                 ["category"],
                 registry=self._registry,
             )
+
+            # Rate limiting metrics
+            self.rate_limit_exceeded = Counter(
+                "rate_limit_exceeded_total",
+                "Total number of rate limit exceeded errors",
+                ["endpoint", "client_type"],
+                registry=self._registry,
+            )
             Metrics._initialized = True
 
 
@@ -315,9 +386,34 @@ class NewsRequest(BaseModel):
     title: str = Field(..., min_length=3)
 
 
+class BatchNewsRequest(BaseModel):
+    titles: list[str] = Field(..., min_length=1, max_length=100)
+
+    @field_validator("titles")
+    def validate_titles(cls, v):
+        for i, title in enumerate(v):
+            if len(title) < 3:
+                raise ValueError(f"Title at index {i} must be at least 3 characters")
+        return v
+
+
 class Prediction(BaseModel):
     category: str
     confidence: float | None = Field(None, ge=0, le=1)
+
+
+class BatchPredictionItem(BaseModel):
+    title: str
+    category: str | None = None
+    confidence: float | None = Field(None, ge=0, le=1)
+    error: str | None = None
+
+
+class BatchPrediction(BaseModel):
+    predictions: list[BatchPredictionItem]
+    total: int
+    successful: int
+    failed: int
 
 
 class Info(BaseModel):
@@ -338,7 +434,8 @@ async def _run_blocking(func, *args):
 # End-points
 # ───────────────────────────────────────────────────────────────────────────────
 @app.get("/info", response_model=Info, tags=["Metadata"])
-async def info() -> Info:
+@limiter.limit(settings.rate_limit_default)
+async def info(request: Request) -> Info:
     return Info(
         model_loaded=model is not None,
         model_name=settings.model_name if model else None,
@@ -353,7 +450,8 @@ async def info() -> Info:
     tags=["Inference"],
     dependencies=[Depends(get_api_key)],
 )
-async def predict(req: NewsRequest) -> Prediction:
+@limiter.limit(settings.rate_limit_predict)
+async def predict(request: Request, req: NewsRequest) -> Prediction:
     if model is None:
         raise HTTPException(status_code=503, detail="Model not available")
 
@@ -395,8 +493,102 @@ async def predict(req: NewsRequest) -> Prediction:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.post(
+    "/predict/batch",
+    response_model=BatchPrediction,
+    tags=["Inference"],
+    dependencies=[Depends(get_api_key)],
+)
+@limiter.limit(settings.rate_limit_batch)
+async def predict_batch(request: Request, req: BatchNewsRequest) -> BatchPrediction:
+    """Batch prediction endpoint for multiple news titles.
+    
+    Accepts up to 100 titles and returns predictions for each.
+    Uses caching and processes uncached titles in a single batch for efficiency.
+    """
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not available")
+
+    results: list[BatchPredictionItem | None] = []
+    uncached_titles: list[str] = []
+    uncached_indices: list[int] = []
+    successful = 0
+    failed = 0
+
+    # Check cache for each title
+    for i, title in enumerate(req.titles):
+        cached = prediction_cache.get(title)
+        if cached:
+            metrics.cache_hits.labels(category=cached["category"]).inc()
+            metrics.prediction_counter.labels(category=cached["category"]).inc()
+            if cached["confidence"] is not None:
+                metrics.prediction_confidence.labels(category=cached["category"]).observe(
+                    cached["confidence"]
+                )
+            results.append(BatchPredictionItem(
+                title=title,
+                category=cached["category"],
+                confidence=cached["confidence"],
+            ))
+            successful += 1
+        else:
+            results.append(None)  # Placeholder
+            uncached_titles.append(title)
+            uncached_indices.append(i)
+
+    # Process uncached titles in batch
+    if uncached_titles:
+        try:
+            preds = await _run_blocking(model.predict, uncached_titles)
+            confs = None
+            if hasattr(model, "predict_proba"):
+                probas = await _run_blocking(model.predict_proba, uncached_titles)
+                confs = [float(p.max()) for p in probas]
+
+            for j, idx in enumerate(uncached_indices):
+                title = uncached_titles[j]
+                cat = preds[j]
+                conf = confs[j] if confs else None
+
+                # Record metrics
+                metrics.cache_misses.labels(category=cat).inc()
+                metrics.prediction_counter.labels(category=cat).inc()
+                if conf is not None:
+                    metrics.prediction_confidence.labels(category=cat).observe(conf)
+                metrics.prediction_rate.labels(category=cat).inc()
+
+                # Cache the result
+                result = {"category": cat, "confidence": conf}
+                prediction_cache.set(title, result)
+
+                results[idx] = BatchPredictionItem(
+                    title=title,
+                    category=cat,
+                    confidence=conf,
+                )
+                successful += 1
+
+        except Exception as e:
+            logger.exception("Batch inference failure")
+            # Mark all uncached as failed
+            for j, idx in enumerate(uncached_indices):
+                results[idx] = BatchPredictionItem(
+                    title=uncached_titles[j],
+                    error=str(e),
+                )
+                failed += 1
+
+    return BatchPrediction(
+        predictions=results,
+        total=len(req.titles),
+        successful=successful,
+        failed=failed,
+    )
+
+
 @app.get("/", response_class=HTMLResponse, tags=["Metadata"])
-async def root():
+@limiter.limit(settings.rate_limit_default)
+async def root(request: Request):
     return (templates_dir / "index.html").read_text()
 
 
