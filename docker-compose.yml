@@ -7,6 +7,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./configs/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -19,6 +20,22 @@ services:
     networks:
       mlops-network:
         ipv4_address: 172.20.0.3
+
+  # Alertmanager for routing Prometheus alerts
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./configs/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
+    networks:
+      mlops-network:
+        ipv4_address: 172.20.0.7
 
   # Grafana for visualization
   grafana:
@@ -111,7 +128,7 @@ services:
     environment:
       API_KEY: ${API_KEY}
       MODEL_NAME: ${MODEL_NAME}
-      MODEL_VERSION: ${MODEL_VERSION:-1}
+      MODEL_VERSION: ${MODEL_VERSION:-}
       CACHE_TTL: ${CACHE_TTL:-3600}
       KAGGLE_USERNAME: ${KAGGLE_USERNAME}
       KAGGLE_API_KEY: ${KAGGLE_API_KEY}
@@ -131,7 +148,7 @@ services:
       - ./configs:/app/configs:ro
       - mlflow-data:/mlflow
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://api:7860/info"]
+      test: ["CMD", "curl", "-f", "http://api:7860/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -169,6 +186,8 @@ services:
 
 volumes:
   prometheus-data:
+    driver: local
+  alertmanager-data:
     driver: local
   grafana-data:
     driver: local

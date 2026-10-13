@@ -21,11 +21,16 @@ cp .env.example .env
 | Variable | Description | Default |
 |----------|-------------|----------|
 | `MODEL_NAME` | MLflow model name | `news_classifier_logistic` |
-| `MODEL_VERSION` | Model version to deploy | `1` |
+| `MODEL_VERSION` | Pin a specific model version. **Leave empty to serve the `champion` alias** (recommended). | *(empty)* |
 | `CACHE_TTL` | Cache time-to-live (seconds) | `3600` |
-| `MLFLOW_TRACKING_URI` | MLflow server URI | `http://mlflow:5000` |
+| `MLFLOW_TRACKING_URI` | MLflow server URI (overrides `configs/mlflow_config.yaml`) | `http://mlflow:5000` |
 | `PREFECT_API_URL` | Prefect server URL | `http://prefect:4200/api` |
 | `LOG_LEVEL` | Logging verbosity | `INFO` |
+
+> **Important:** if `MODEL_VERSION` is set to a number, the API serves that
+> exact version and **ignores the `champion` alias**. Clear it (or remove the
+> line) to let the promotion gate decide what is deployed. The shipped
+> `.env.example` still contains `MODEL_VERSION=1`; blank it out.
 
 ### Rate Limiting Variables
 
@@ -41,6 +46,7 @@ cp .env.example .env
 |----------|-------------|----------|
 | `API_PORT` | FastAPI service port | `7860` |
 | `PROMETHEUS_PORT` | Prometheus port | `9090` |
+| `ALERTMANAGER_PORT` | Alertmanager port | `9093` |
 | `GRAFANA_PORT` | Grafana port | `3000` |
 | `MLFLOW_PORT` | MLflow port | `5000` |
 | `PREFECT_PORT` | Prefect port | `4200` |

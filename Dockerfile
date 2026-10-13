@@ -102,9 +102,9 @@ USER appuser
 # Expose the port
 EXPOSE 7860
 
-# Add health check endpoint
+# Add health check endpoint (liveness: process is up)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD curl -f http://localhost:7860/info || exit 1
+    CMD curl -f http://localhost:7860/health || exit 1
 
 # Use entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]

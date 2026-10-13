@@ -28,6 +28,8 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 
+from src.models.promote import CHAMPION_ALIAS
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +42,7 @@ CONFIG_PATH = Path(__file__).parent.parent.parent / "configs" / "mlflow_config.y
 
 # Load model configuration from environment variables
 MODEL_NAME = os.getenv("MODEL_NAME", "news_classifier_logistic")
-MODEL_VERSION = os.getenv("MODEL_VERSION", 1)
+MODEL_VERSION = os.getenv("MODEL_VERSION", "1")
 
 
 def load_mlflow_config():
@@ -50,7 +52,7 @@ def load_mlflow_config():
     return config
 
 
-def load_model_from_registry(model_name: str, version: str = None):
+def load_model_from_registry(model_name: str, version: str | None = None):
     """
     Load a model from MLflow Model Registry.
 
@@ -62,15 +64,17 @@ def load_model_from_registry(model_name: str, version: str = None):
         Loaded model
     """
     config = load_mlflow_config()
-    mlflow.set_tracking_uri(config["tracking_uri"])
+    # Env wins over the config file so CI/containers can override it.
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI") or config["tracking_uri"])
 
     try:
         if version:
             model_uri = f"models:/{model_name}/{version}"
             logger.info(f"Loading model {model_name} version {version}")
         else:
-            model_uri = f"models:/{model_name}/Production"
-            logger.info(f"Loading latest production version of model {model_name}")
+            # Aliases replace the deprecated Production/Staging stages.
+            model_uri = f"models:/{model_name}@{CHAMPION_ALIAS}"
+            logger.info(f"Loading champion version of model {model_name}")
 
         model = mlflow.sklearn.load_model(model_uri)
         logger.info("Model loaded successfully from MLflow Model Registry")
@@ -94,7 +98,6 @@ def evaluate_model(model, X_val, y_val):
     f1 = f1_score(y_val, y_pred, average="weighted")
     precision = precision_score(y_val, y_pred, average="weighted", zero_division=0)
     recall = recall_score(y_val, y_pred, average="weighted", zero_division=0)
-    report = classification_report(y_val, y_pred, output_dict=True)
     report_str = classification_report(y_val, y_pred)
 
     # Calculate log loss if possible
@@ -225,13 +228,15 @@ def evaluate_model(model, X_val, y_val):
     logger.info(f"Markdown evaluation report saved to {md_path}")
 
 
-def main(model_name: str = None, version: str = None):
+def main(model_name: str | None = None, version: str | None = None):
     """
-    Main evaluation function that can load models from either local storage or MLflow registry.
+    Main evaluation function that loads a model from either local storage
+    or the MLflow registry.
 
     Args:
-        model_name: Name of the model in MLflow registry. If None, tries to load from local storage.
-        version: Specific version to load from registry. If None, loads latest production version.
+        model_name: Name of the model in MLflow registry. If None, loads
+            from local storage.
+        version: Specific version to load. If None, loads the champion.
     """
     val_df = pd.read_csv(PROCESSED_DATA_DIR / "val.csv")
     X_val = val_df["title"]

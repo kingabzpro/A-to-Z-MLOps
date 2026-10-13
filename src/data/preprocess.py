@@ -22,6 +22,9 @@ def preprocess():
         raise FileNotFoundError(
             "Raw BBC articles CSV not found. Please download the dataset first."
         )
+    # Create the output directory here rather than relying on import-time
+    # side effects, so the function is safe to call with any target path.
+    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     df = pd.read_csv(RAW_CSV, sep="\t", on_bad_lines="skip")
     # Basic cleaning: drop NA, keep only needed columns
     df = df.dropna(subset=["title", "category"])

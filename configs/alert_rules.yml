@@ -1,0 +1,73 @@
+# Prometheus alerting rules for the news-classifier API.
+# Loaded via `rule_files` in prometheus.yml.
+groups:
+  - name: api-availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "News API is unreachable"
+          description: "Prometheus has failed to scrape {{ $labels.instance }} for 2 minutes."
+
+      - alert: ApiModelNotLoaded
+        expr: model_loaded == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "News API has no model loaded"
+          description: "The API is up but serving 503s because no model is loaded."
+
+  - name: api-performance
+    rules:
+      - alert: ApiHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="api",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "News API 5xx error rate above 5%"
+          description: "More than 5% of requests have failed for 5 minutes."
+
+      - alert: ApiHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="api"}[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "News API p95 latency above 1s"
+          description: "95th percentile request latency has exceeded 1 second for 5 minutes."
+
+      - alert: ApiRateLimitSustained
+        expr: sum(rate(rate_limit_exceeded_total[5m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Clients are being rate limited"
+          description: "Sustained 429s suggest a client is over quota or the limit is too tight."
+
+  - name: api-model-quality
+    rules:
+      - alert: ApiLowConfidencePredictions
+        expr: |
+          histogram_quantile(
+            0.5,
+            sum(rate(news_prediction_confidence_bucket{job="api"}[15m])) by (le)
+          ) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Median prediction confidence below 0.5"
+          description: "The model is uncertain on live traffic, which may indicate drift."

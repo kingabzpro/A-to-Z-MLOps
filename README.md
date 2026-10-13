@@ -30,7 +30,12 @@ Access the services:
 - **📈 MLflow Tracking**: http://localhost:5000
 - **📉 Grafana Dashboards**: http://localhost:3000
 - **🔍 Prometheus Metrics**: http://localhost:9090
+- **🚨 Alertmanager**: http://localhost:9093
 - **⚙️ Prefect Orchestration**: http://localhost:4200
+
+Probes: `GET /health` (liveness) and `GET /ready` (readiness, 503 until a model
+is loaded). The API serves whichever model version holds the MLflow `champion`
+alias, which is only moved by the promotion gate.
 
 Test the API:
 ```bash

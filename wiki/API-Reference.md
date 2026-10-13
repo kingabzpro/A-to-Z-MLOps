@@ -4,10 +4,12 @@
 
 | Endpoint | Method | Description | Rate Limit | Auth Required |
 |----------|--------|-------------|------------|---------------|
-| `/` | GET | Web UI for testing | 100/min | No |
-| `/info` | GET | Model metadata and health | 100/min | No |
-| `/predict` | POST | Single title prediction | 30/min | Yes |
-| `/predict/batch` | POST | Batch prediction (up to 100 titles) | 10/min | Yes |
+| `/` | GET | Web UI for testing | 10000/min | No |
+| `/health` | GET | Liveness probe (always 200) | - | No |
+| `/ready` | GET | Readiness probe (503 until a model is loaded) | - | No |
+| `/info` | GET | Model metadata | 10000/min | No |
+| `/predict` | POST | Single title prediction | 3000/min | Yes |
+| `/predict/batch` | POST | Batch prediction (up to 100 titles) | 1000/min | Yes |
 | `/metrics` | GET | Prometheus metrics | - | No |
 | `/docs` | GET | Swagger API documentation | - | No |
 
@@ -115,30 +117,59 @@ curl "http://localhost:7860/info"
 **Response:**
 ```json
 {
+  "model_loaded": true,
   "model_name": "news_classifier_logistic",
-  "model_version": "1",
-  "status": "healthy",
-  "categories": ["tech", "sport", "business", "politics", "entertainment"]
+  "model_version": "2",
+  "classes": ["business", "entertainment", "politics", "sport", "tech"]
 }
+```
+
+`model_version` is the version currently assigned to the `champion` alias (see
+[Model Promotion](#model-promotion)).
+
+---
+
+## Health & Readiness
+
+**Liveness — `GET /health`** always returns `200` as long as the process is up.
+It deliberately ignores model state, so a pod is only restarted when the
+process itself is wedged.
+
+```bash
+curl "http://localhost:7860/health"
+```
+```json
+{"status": "ok"}
+```
+
+**Readiness — `GET /ready`** returns `200` once a model is loaded and able to
+serve, and `503` otherwise. Kubernetes routes traffic based on this endpoint.
+
+```bash
+curl "http://localhost:7860/ready"
+```
+```json
+{"status": "ready", "model_name": "news_classifier_logistic", "model_version": "2"}
 ```
 
 ---
 
-## Health Check
+## Model Promotion
 
-**Endpoint:** `GET /health`
+The API serves whatever version is assigned the **`champion`** alias in the
+MLflow Model Registry. The alias is only moved by the promotion gate
+(`src/models/promote.py`), which compares a freshly trained version against the
+incumbent champion on the held-out `test.csv` split and promotes only if the
+candidate is not worse (by at least `min_delta`).
 
-**Request:**
-```bash
-curl "http://localhost:7860/health"
-```
+Resolution order at startup:
 
-**Response:**
-```json
-{
-  "status": "healthy"
-}
-```
+1. `MODEL_VERSION`, if explicitly set;
+2. the `champion` alias;
+3. the newest registered version (last-resort fallback).
+
+Set `MODEL_VERSION` to a number to pin a specific version; leave it unset to
+follow the champion.
 
 ---
 

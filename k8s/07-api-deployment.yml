@@ -66,9 +66,6 @@ spec:
               name: mlops-config
               key: RUN_PIPELINE
         volumeMounts:
-        - name: configs
-          mountPath: /app/configs
-          readOnly: true
         - name: mlflow-storage
           mountPath: /mlflow
         resources:
@@ -80,7 +77,7 @@ spec:
             memory: 2Gi
         livenessProbe:
           httpGet:
-            path: /info
+            path: /health
             port: 7860
           initialDelaySeconds: 90
           periodSeconds: 30
@@ -88,7 +85,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /info
+            path: /ready
             port: 7860
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -103,8 +100,6 @@ spec:
             drop:
               - ALL
       volumes:
-      - name: configs
-        emptyDir: {}
       - name: mlflow-storage
         emptyDir: {}
       affinity:

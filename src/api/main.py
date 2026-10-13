@@ -5,13 +5,16 @@ FastAPI-based micro-service for text-classification inference.
 """
 
 import asyncio
+import json
 import logging
+import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import joblib
 import mlflow
@@ -21,6 +24,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, Security
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
+from mlflow.tracking import MlflowClient
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -32,8 +36,8 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Settings
@@ -42,35 +46,36 @@ load_dotenv()  # allow .env overrides for local dev
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(extra="ignore")  # ignore stray env vars
+    """Runtime configuration. Env var names map to fields case-insensitively."""
 
-    api_key: str | None = Field(default=None, json_schema_extra={"env": "API_KEY"})
-    model_name: str = Field(
-        "news_classifier_logistic", json_schema_extra={"env": "MODEL_NAME"}
-    )
-    model_version: str | int = Field(1, json_schema_extra={"env": "MODEL_VERSION"})
-    cache_ttl: int = Field(
-        3600, json_schema_extra={"env": "CACHE_TTL"}
-    )  # Cache TTL in seconds (1 hour)
+    model_config = SettingsConfigDict(extra="ignore")  # ignore stray env vars
+
+    api_key: str | None = None
+    model_name: str = "news_classifier_logistic"
+    # Optional explicit pin. When unset (default) the API serves the
+    # ``champion`` alias maintained by the promotion gate.
+    model_version: str | None = None
+    cache_ttl: int = 3600  # Cache TTL in seconds (1 hour)
+    # Explicit alias: the field name would otherwise map to TRACKING_URI.
     tracking_uri: str | None = Field(
-        None, json_schema_extra={"env": "MLFLOW_TRACKING_URI"}
+        default=None,
+        validation_alias=AliasChoices("MLFLOW_TRACKING_URI", "TRACKING_URI"),
     )
     # Rate limiting settings
-    rate_limit_default: str = Field(
-        "10000/minute", json_schema_extra={"env": "RATE_LIMIT_DEFAULT"}
-    )
-    rate_limit_predict: str = Field(
-        "3000/minute", json_schema_extra={"env": "RATE_LIMIT_PREDICT"}
-    )
-    rate_limit_batch: str = Field(
-        "1000/minute", json_schema_extra={"env": "RATE_LIMIT_BATCH"}
-    )
+    rate_limit_default: str = "10000/minute"
+    rate_limit_predict: str = "3000/minute"
+    rate_limit_batch: str = "1000/minute"
 
     @field_validator("model_version", mode="before")
+    @classmethod
     def _coerce_version(cls, v):
-        return str(v) if v is not None else v
+        # Empty string (e.g. an unset ConfigMap key) means "no pin".
+        if v is None or v == "":
+            return None
+        return str(v)
 
     @field_validator("cache_ttl", mode="before")
+    @classmethod
     def _parse_cache_ttl(cls, v):
         if isinstance(v, str):
             # Remove any comments and strip whitespace
@@ -79,8 +84,68 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Structured (JSON) logging
+# ───────────────────────────────────────────────────────────────────────────────
+class JsonFormatter(logging.Formatter):
+    """Emit one JSON object per line so logs are queryable in production."""
+
+    _RESERVED = {
+        "name",
+        "msg",
+        "args",
+        "levelname",
+        "levelno",
+        "pathname",
+        "filename",
+        "module",
+        "exc_info",
+        "exc_text",
+        "stack_info",
+        "lineno",
+        "funcName",
+        "created",
+        "msecs",
+        "relativeCreated",
+        "thread",
+        "threadName",
+        "processName",
+        "process",
+        "taskName",
+        "message",
+    }
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        # Promote any structured ``extra=`` fields onto the log line.
+        for key, value in record.__dict__.items():
+            if key not in self._RESERVED and not key.startswith("_"):
+                payload[key] = value
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, default=str)
+
+
+def configure_logging() -> None:
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(logging.INFO)
+
+
+configure_logging()
 logger = logging.getLogger("news-api")
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# Alias maintained by the promotion gate (src/models/promote.py).
+CHAMPION_ALIAS = "champion"
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
@@ -144,27 +209,69 @@ def _load_mlflow_cfg() -> dict:
     return {}
 
 
-def _load_from_registry(name: str, version: str) -> Tuple[object, str]:
-    """Return (model, resolved_version).  Raises on failure."""
+def _load_from_registry(name: str, version: str | None) -> Tuple[object, str]:
+    """
+    Resolve the serving model from the MLflow registry.
+
+    Resolution order:
+      1. explicit MODEL_VERSION, when configured;
+      2. the ``champion`` alias set by the promotion gate;
+      3. the newest registered version (last-resort fallback).
+    """
     cfg = _load_mlflow_cfg()
 
-    uri = cfg.get("tracking_uri") or settings.tracking_uri
+    # Env wins over the config file so containers/CI can override the
+    # hardcoded local-dev address without editing tracked config.
+    uri = settings.tracking_uri or cfg.get("tracking_uri")
     if not uri:
         raise RuntimeError("MLflow tracking URI not configured")
+
+    # Bound how long a registry outage can stall startup. MLflow's defaults
+    # (7 retries x 120s) would block readiness for ~15 minutes before falling
+    # back to a local model.
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "10")
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "2")
+
     mlflow.set_tracking_uri(uri)
 
-    # Always use "latest" version regardless of input version
-    model_uri = f"models:/{name}/latest"
-    logger.info("Loading latest model from registry: %s", model_uri)
-    model = mlflow.sklearn.load_model(model_uri)
-    return model, "latest"
+    client = MlflowClient()
+
+    attempts: list[Tuple[str, str]] = []
+    if version and str(version).lower() not in {"", "latest", "champion"}:
+        attempts.append((f"models:/{name}/{version}", str(version)))
+    attempts.append((f"models:/{name}@{CHAMPION_ALIAS}", CHAMPION_ALIAS))
+    attempts.append((f"models:/{name}/latest", "latest"))
+
+    last_error: Exception | None = None
+    for model_uri, label in attempts:
+        try:
+            logger.info("Loading model from registry: %s", model_uri)
+            model = mlflow.sklearn.load_model(model_uri)
+            resolved = label
+            if label == CHAMPION_ALIAS:
+                try:
+                    resolved = str(
+                        client.get_model_version_by_alias(name, CHAMPION_ALIAS).version
+                    )
+                except Exception:  # alias may be missing on older servers
+                    pass
+            return model, resolved
+        except Exception as exc:
+            last_error = exc
+            logger.warning("Registry load failed for %s: %s", model_uri, exc)
+
+    raise RuntimeError(
+        f"Unable to load '{name}' from the model registry"
+    ) from last_error
 
 
 def _load_local_fallback() -> Tuple[object, str]:
-    pattern = (MODELS_DIR / "news_classifier_*.joblib").as_posix()
-    local_path = next(Path().glob(pattern), None)
+    # MODELS_DIR.glob (not Path().glob) - absolute patterns are unsupported.
+    local_path = next(MODELS_DIR.glob("news_classifier_*.joblib"), None)
     if not local_path:
-        raise FileNotFoundError("No local model found matching pattern")
+        raise FileNotFoundError(
+            f"No local model found in {MODELS_DIR} matching news_classifier_*.joblib"
+        )
     logger.warning("Falling back to local model: %s", local_path)
     return joblib.load(local_path), "local"
 
@@ -173,7 +280,7 @@ def _load_local_fallback() -> Tuple[object, str]:
 # FastAPI app & lifecycle
 # ───────────────────────────────────────────────────────────────────────────────
 app: FastAPI  # forward ref for typing
-model: object | None = None
+model: Any | None = None
 model_version: str | None = None
 
 
@@ -192,6 +299,7 @@ async def lifespan(_: FastAPI):
         except Exception as inner:
             logger.critical("No model available: %s", inner)
             model = model_version = None
+    _record_model_state()
     yield
     EXECUTOR.shutdown(wait=True)
 
@@ -202,8 +310,11 @@ async def lifespan(_: FastAPI):
 APP_DESCRIPTION = """
 Async micro-service that classifies short news headlines into predefined
 categories using a scikit-learn model.  
+•  **/health** — liveness probe  
+•  **/ready** — readiness probe (503 until a model is loaded)  
 •  **/info** — model & class metadata  
 •  **/predict** — JSON inference endpoint (title → category + confidence)  
+•  **/predict/batch** — up to 100 titles per request  
 •  Prometheus metrics exposed at **/metrics**
 """
 
@@ -227,31 +338,36 @@ app.state.limiter = limiter
 
 # Rate limit error handler
 @app.exception_handler(RateLimitExceeded)
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+async def rate_limit_exceeded_handler(
+    request: Request, exc: RateLimitExceeded
+) -> JSONResponse:
     """Handle rate limit exceeded errors with proper JSON response."""
     client_id = get_client_identifier(request)
     client_type = "api_key" if client_id.startswith("apikey:") else "ip"
-    
+
     # Record metric
     metrics.rate_limit_exceeded.labels(
         endpoint=request.url.path,
         client_type=client_type,
     ).inc()
-    
+
     logger.warning(
         "Rate limit exceeded for %s on endpoint %s",
         client_id,
         request.url.path,
     )
-    
+
     return JSONResponse(
         status_code=429,
         content={
             "detail": "Rate limit exceeded",
-            "retry_after": str(exc.detail).split(" ")[-1] if exc.detail else "60 seconds",
+            "retry_after": (
+                str(exc.detail).split(" ")[-1] if exc.detail else "60 seconds"
+            ),
         },
         headers={"Retry-After": "60"},
     )
+
 
 # Static HTML/JS assets
 templates_dir = BASE_DIR / "templates"
@@ -332,6 +448,19 @@ class Metrics:
                 ["endpoint", "client_type"],
                 registry=self._registry,
             )
+
+            # Serving-state metrics
+            self.model_loaded = Gauge(
+                "model_loaded",
+                "1 when a model is loaded and able to serve, else 0",
+                registry=self._registry,
+            )
+            self.model_info = Gauge(
+                "model_info",
+                "Serving model metadata (value is always 1)",
+                ["model_name", "model_version"],
+                registry=self._registry,
+            )
             Metrics._initialized = True
 
 
@@ -339,14 +468,25 @@ class Metrics:
 metrics = Metrics()
 
 
-# Metrics middleware
+def _record_model_state() -> None:
+    """Publish serving-state gauges so alerts can fire on a model-less pod."""
+    metrics.model_loaded.set(1 if model is not None else 0)
+    if model is not None:
+        metrics.model_info.labels(
+            model_name=settings.model_name, model_version=str(model_version)
+        ).set(1)
+
+
+# Observability middleware: request IDs, metrics, and structured access logs
 @app.middleware("http")
-async def metrics_middleware(request, call_next):
+async def observability_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:16]
+    request.state.request_id = request_id
+
     start_time = time.time()
     response = await call_next(request)
     duration = time.time() - start_time
 
-    # Record request metrics
     metrics.request_count.labels(
         method=request.method, endpoint=request.url.path, status=response.status_code
     ).inc()
@@ -355,6 +495,18 @@ async def metrics_middleware(request, call_next):
         method=request.method, endpoint=request.url.path
     ).observe(duration)
 
+    logger.info(
+        "request completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "duration_ms": round(duration * 1000, 2),
+        },
+    )
+
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -433,6 +585,39 @@ async def _run_blocking(func, *args):
 # ───────────────────────────────────────────────────────────────────────────────
 # End-points
 # ───────────────────────────────────────────────────────────────────────────────
+@app.get("/health", tags=["Metadata"])
+async def health() -> dict:
+    """
+    Liveness probe: the process is up.
+
+    Deliberately independent of model state so a model-less pod is restarted
+    only when the process itself is wedged.
+    """
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["Metadata"])
+async def ready() -> JSONResponse:
+    """
+    Readiness probe: 503 until a model is loaded and able to serve.
+
+    Kubernetes should route traffic based on this, not on /health.
+    """
+    if model is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": "model not loaded"},
+        )
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "ready",
+            "model_name": settings.model_name,
+            "model_version": model_version,
+        },
+    )
+
+
 @app.get("/info", response_model=Info, tags=["Metadata"])
 @limiter.limit(settings.rate_limit_default)
 async def info(request: Request) -> Info:
@@ -502,7 +687,7 @@ async def predict(request: Request, req: NewsRequest) -> Prediction:
 @limiter.limit(settings.rate_limit_batch)
 async def predict_batch(request: Request, req: BatchNewsRequest) -> BatchPrediction:
     """Batch prediction endpoint for multiple news titles.
-    
+
     Accepts up to 100 titles and returns predictions for each.
     Uses caching and processes uncached titles in a single batch for efficiency.
     """
@@ -522,14 +707,16 @@ async def predict_batch(request: Request, req: BatchNewsRequest) -> BatchPredict
             metrics.cache_hits.labels(category=cached["category"]).inc()
             metrics.prediction_counter.labels(category=cached["category"]).inc()
             if cached["confidence"] is not None:
-                metrics.prediction_confidence.labels(category=cached["category"]).observe(
-                    cached["confidence"]
+                metrics.prediction_confidence.labels(
+                    category=cached["category"]
+                ).observe(cached["confidence"])
+            results.append(
+                BatchPredictionItem(
+                    title=title,
+                    category=cached["category"],
+                    confidence=cached["confidence"],
                 )
-            results.append(BatchPredictionItem(
-                title=title,
-                category=cached["category"],
-                confidence=cached["confidence"],
-            ))
+            )
             successful += 1
         else:
             results.append(None)  # Placeholder
@@ -578,8 +765,11 @@ async def predict_batch(request: Request, req: BatchNewsRequest) -> BatchPredict
                 )
                 failed += 1
 
+    # Every placeholder is filled by this point (either a prediction or an
+    # error), so narrowing away the None is safe.
+    ordered = [item for item in results if item is not None]
     return BatchPrediction(
-        predictions=results,
+        predictions=ordered,
         total=len(req.titles),
         successful=successful,
         failed=failed,

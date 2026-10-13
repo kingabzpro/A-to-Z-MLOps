@@ -20,8 +20,13 @@ pytest tests/unit/ -v
 pytest tests/integration/ -v
 
 # Single test file
-pytest tests/test_model.py -v
+pytest tests/integration/test_api.py -v
 ```
+
+> `tests/stress_test.py` is a Locust load-test script, not a pytest module.
+> It is listed in `tests/conftest.py` under `collect_ignore` because importing
+> it triggers gevent's monkey-patching, which deadlocks the httpx TestClient.
+> Run it with Locust (see below), never with pytest.
 
 ---
 
@@ -126,10 +131,13 @@ pytest tests/ --cov=src --cov-report=xml
 
 ### Coverage Thresholds
 
-Enforce minimum coverage:
+Enforce a minimum coverage (once the suite grows):
 ```bash
 pytest tests/ --cov=src --cov-fail-under=80
 ```
+
+The CI workflow currently reports coverage without a hard threshold, so it
+never blocks on an arbitrary number while the suite is still growing.
 
 ---
 

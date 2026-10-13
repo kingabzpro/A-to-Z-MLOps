@@ -46,20 +46,21 @@ MODEL_PARAMS_PATH = (
 
 
 def load_mlflow_config():
-    """Load MLflow configuration from YAML file with environment variable substitution"""
+    """Load MLflow config from YAML with ${VAR:default} substitution."""
     with open(CONFIG_PATH, "r") as file:
         content = file.read()
         # Replace environment variables in format ${VAR:default}
         import re
+
         def replace_env_var(match):
             var_expr = match.group(1)
-            if ':' in var_expr:
-                var_name, default_value = var_expr.split(':', 1)
+            if ":" in var_expr:
+                var_name, default_value = var_expr.split(":", 1)
                 return os.getenv(var_name, default_value)
             else:
-                return os.getenv(var_expr, '')
+                return os.getenv(var_expr, "")
 
-        content = re.sub(r'\$\{([^}]+)\}', replace_env_var, content)
+        content = re.sub(r"\$\{([^}]+)\}", replace_env_var, content)
         config = yaml.safe_load(content)
     return config
 
@@ -75,12 +76,13 @@ def setup_mlflow():
     """Set up MLflow tracking"""
     config = load_mlflow_config()
 
-    tracking_uri = config["tracking_uri"]
+    # Env wins over the config file so CI/containers can override it.
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI") or config["tracking_uri"]
 
     # Set environment variables to help with host header resolution
-    os.environ['MLFLOW_TRACKING_URI'] = tracking_uri
-    os.environ['MLFLOW_TRACKING_HOST'] = 'mlflow'
-    os.environ['MLFLOW_TRACKING_PORT'] = '5000'
+    os.environ["MLFLOW_TRACKING_URI"] = tracking_uri
+    os.environ.setdefault("MLFLOW_TRACKING_HOST", "mlflow")
+    os.environ.setdefault("MLFLOW_TRACKING_PORT", "5000")
 
     # Configure MLflow tracking
     mlflow.set_tracking_uri(tracking_uri)
@@ -168,7 +170,7 @@ def train_model(classifier_type="logistic", tune_hyperparams=True):
     model_params = load_model_params()
 
     # Start MLflow run
-    with mlflow.start_run() as run:
+    with mlflow.start_run():
         # Log parameters
         mlflow.log_param("classifier_type", classifier_type)
         mlflow.log_param("tune_hyperparams", tune_hyperparams)
@@ -217,9 +219,8 @@ def train_model(classifier_type="logistic", tune_hyperparams=True):
         client = mlflow.tracking.MlflowClient()
         latest_versions = client.get_latest_versions(model_name)
         if latest_versions:
-            logger.info(
-                f"Model registered successfully. Latest version: {latest_versions[0].version}"
-            )
+            version = latest_versions[0].version
+            logger.info("Model registered successfully. Latest version: %s", version)
 
         # Save model locally
         model_path = MODEL_DIR / f"news_classifier_{classifier_type}.joblib"

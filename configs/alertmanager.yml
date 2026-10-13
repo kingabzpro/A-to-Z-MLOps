@@ -1,0 +1,15 @@
+# Minimal Alertmanager config.
+#
+# The default receiver intentionally has no integration configured, so alerts
+# are visible in the Alertmanager UI (http://localhost:9093) without sending
+# anywhere. Add a slack_configs / pagerduty_configs / webhook_configs block
+# here to route them for real.
+route:
+  receiver: default
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: default
