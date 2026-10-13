@@ -20,6 +20,9 @@ wheels/
 .installed.cfg
 *.egg
 .pytest_cache
+.mypy_cache
+.coverage
+htmlcov/
 # Jupyter Notebooks
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
