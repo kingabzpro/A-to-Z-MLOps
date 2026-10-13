@@ -9,8 +9,10 @@ pre-commit>=3.7.0
 
 # Testing
 # pytest >= 9.0.3 fixes a tmpdir-handling advisory (GHSA on 8.x).
+# pytest-asyncio is left unpinned above 0.23.5 so the resolver can pick a
+# version compatible with pytest 9.
 pytest>=9.0.3
-pytest-asyncio==0.23.5
+pytest-asyncio>=0.23.5
 pytest-cov>=5.0.0
 httpx==0.26.0
 
