@@ -86,14 +86,27 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Load image locally for scanning
+        # buildx pushes without keeping a local copy, and the pushed digest is
+        # not resolvable by Trivy. Rebuild into the local daemon; the GHA layer
+        # cache makes this fast.
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: a-to-z-mlops:scan
+          cache-from: type=gha
 
       - name: Scan image for vulnerabilities (Trivy)
         # Pinned to the v0.36.0 commit. The action had a supply-chain advisory
         # (fixed in 0.35.0); Dependabot can still bump this SHA.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          # Single, precise ref: the image we just pushed to GHCR.
-          image-ref: ghcr.io/${{ github.repository_owner }}/a-to-z-mlops@${{ steps.push.outputs.digest }}
+          image-ref: a-to-z-mlops:scan
           format: table
           exit-code: "1"
           severity: CRITICAL
